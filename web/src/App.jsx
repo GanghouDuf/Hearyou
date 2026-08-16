@@ -12,9 +12,15 @@ export default function App() {
 		wsRef.current = ws
 
 		ws.onmessage = (event) => {
-			const msg = JSON.parse(event.data)
-			setMessages((prev) => [...prev, msg])
-		}
+	    const msg = JSON.parse(event.data)
+
+	    if (msg.type === 'error') {
+		console.error('validation error:', msg.payload)
+		return
+	    }
+
+	setMessages((prev) => [...prev, msg])
+}
 
 		ws.onopen = () => console.log('WebSocket connected')
 		ws.onclose = () => console.log('WebSocket disconnected')

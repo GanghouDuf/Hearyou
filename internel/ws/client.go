@@ -41,9 +41,23 @@ func (c *Client) ReadPump() {
 		}
 
 		if err := msg.Validate(); err != nil {
-			for _, fieldErr := range err.(validator.ValidationErrors) {
-				log.Printf("field %s failed on %s", fieldErr.Field(), fieldErr.Tag())
+			if valerrors, ok := err.(validator.ValidationErrors); ok {
+				for _, fielderror := range valerrors {
+
+					log.Printf("field %s failed on %s", fielderror.Field(), fielderror.Tag())
+				}
 			}
+
+			errjson := dto.ErrorMessage{
+				Type:    "error",
+				Payload: err.Error(),
+			}
+			out, errclient := json.Marshal(errjson)
+			if errclient != nil {
+				continue
+			}
+			c.send <- out
+
 			continue
 		}
 
