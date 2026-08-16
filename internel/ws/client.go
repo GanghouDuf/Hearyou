@@ -2,6 +2,8 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
+	"project_chat/internel/dto"
 
 	"github.com/coder/websocket"
 )
@@ -27,11 +29,21 @@ func (c *Client) ReadPump() {
 	}()
 
 	for {
-		_, msg, err := c.conn.Read(context.Background())
+		_, raw, err := c.conn.Read(context.Background())
 		if err != nil {
 			break
 		}
-		c.hub.broadcast <- msg
+		var msg dto.Message
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			continue
+		}
+
+		out, err := json.Marshal(msg)
+		if err != nil {
+			continue
+		}
+
+		c.hub.Broadcast(out)
 	}
 }
 
