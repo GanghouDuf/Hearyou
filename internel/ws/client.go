@@ -3,9 +3,11 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"project_chat/internel/dto"
 
 	"github.com/coder/websocket"
+	"github.com/go-playground/validator/v10"
 )
 
 type Client struct {
@@ -35,6 +37,13 @@ func (c *Client) ReadPump() {
 		}
 		var msg dto.Message
 		if err := json.Unmarshal(raw, &msg); err != nil {
+			continue
+		}
+
+		if err := msg.Validate(); err != nil {
+			for _, fieldErr := range err.(validator.ValidationErrors) {
+				log.Printf("field %s failed on %s", fieldErr.Field(), fieldErr.Tag())
+			}
 			continue
 		}
 

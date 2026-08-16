@@ -46,9 +46,11 @@ func (s *Server) Stop(ctx context.Context) error {
 }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("GET /", s.handleIndex)
+
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /ws", s.handleWS)
+	fs := http.FileServer(http.Dir("web/dist"))
+	s.mux.Handle("GET /", fs)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
