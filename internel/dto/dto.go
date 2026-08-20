@@ -1,10 +1,6 @@
 package dto
 
-import (
-	"strings"
-
-	"github.com/go-playground/validator/v10"
-)
+import "project_chat/internel/validation"
 
 type Message struct {
 	Type    string `json:"type" validate:"required,oneof=chat"`
@@ -17,16 +13,6 @@ type ErrorMessage struct {
 	Payload string `json:"payload"`
 }
 
-var validate = validator.New()
-
 func (m Message) Validate() error {
-	return validate.Struct(m)
-}
-
-func notBlank(fl validator.FieldLevel) bool {
-	return strings.TrimSpace(fl.Field().String()) != ""
-}
-
-func init() {
-	validate.RegisterValidation("notblank", notBlank)
+	return validation.V.Struct(m)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"project_chat/internel/auth"
 	"project_chat/internel/config"
 	"project_chat/internel/server"
 	"project_chat/internel/storage"
@@ -16,10 +17,13 @@ func main() {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+	auth.SetSecret(config.JwtSecret)
+	userRepo := storage.NewUserReporitory(conn)
 	defer conn.Close(ctx)
 	hub := ws.NewHub()
+
 	go hub.Run()
-	srv := server.NewServer(config.Addr, hub)
+	srv := server.NewServer(config.Addr, hub, userRepo)
 	log.Fatal(srv.Start())
 
 }
