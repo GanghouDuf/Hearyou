@@ -9,6 +9,8 @@ export default defineConfig({
 				target: 'ws://localhost:8080',
 				ws: true,
 			},
+			'/register': 'http://localhost:8080',
+			'/login': 'http://localhost:8080',
 		},
 	},
-})  
+})

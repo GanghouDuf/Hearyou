@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Addr        string
 	DatabaseUrl string
+	JwtSecret   string
 }
 
 func Load() *Config {
@@ -27,8 +28,14 @@ func Load() *Config {
 		dbURL = "postgres://postgres:postgres@localhost:5432/chat?sslmode=disable"
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET is required")
+	}
+
 	return &Config{
 		Addr:        addr,
 		DatabaseUrl: dbURL,
+		JwtSecret:   jwtSecret,
 	}
 }
