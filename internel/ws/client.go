@@ -11,16 +11,18 @@ import (
 )
 
 type Client struct {
-	hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
+	hub      *Hub
+	conn     *websocket.Conn
+	send     chan []byte
+	username string
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, username string) *Client {
 	return &Client{
-		hub:  hub,
-		conn: conn,
-		send: make(chan []byte, 256),
+		hub:      hub,
+		conn:     conn,
+		send:     make(chan []byte, 256),
+		username: username,
 	}
 }
 
@@ -39,6 +41,8 @@ func (c *Client) ReadPump() {
 		if err := json.Unmarshal(raw, &msg); err != nil {
 			continue
 		}
+
+		msg.Author = c.username
 
 		if err := msg.Validate(); err != nil {
 			if valerrors, ok := err.(validator.ValidationErrors); ok {

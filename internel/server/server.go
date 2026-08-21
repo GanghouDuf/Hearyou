@@ -70,12 +70,31 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		http.Error(w, "missing token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := auth.ValidateToken(tokenString)
+	if err != nil {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	username, ok := claims["username"].(string)
+	if !ok {
+		http.Error(w, "invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Println("accept error:", err)
 		return
 	}
-	client := ws.NewClient(s.hub, conn)
+
+	client := ws.NewClient(s.hub, conn, username)
 	s.hub.Register(client)
 
 	go client.WritePump()
@@ -101,7 +120,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.userRepo.Create(r.Context(), req.Username, hash); err != nil {
-		http.Error(w, "username already taken", http.StatusConflict)
+		http.Error(w, "Имя уже занято", http.StatusConflict)
 		return
 	}
 
@@ -123,15 +142,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := s.userRepo.GetByUsername(r.Context(), req.Username)
 	if err != nil {
 		log.Println("login: GetByUsername error:", err)
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		http.Error(w, "Неверные учётные данные", http.StatusUnauthorized)
 		return
 	}
-	log.Printf("login: found user, hash=%s", user.PasswordHash) // ←
+	log.Printf("login: found user, hash=%s", user.PasswordHash)
 	log.Printf("login: comparing with password=%s", req.Password)
 
 	if !auth.CheckPassword(user.PasswordHash, req.Password) {
 		log.Println("login: password mismatch")
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		http.Error(w, "Неверные учётные данные", http.StatusUnauthorized)
 		return
 	}
 

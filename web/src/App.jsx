@@ -69,16 +69,15 @@ export default function App() {
 	}
 
 	function handleSend(e) {
-		e.preventDefault()
-		if (input.trim() === '') return
+	e.preventDefault()
+	if (input.trim() === '') return
 
-		wsRef.current.send(JSON.stringify({
-			type: 'chat',
-			author: username,
-			payload: input,
-		}))
-		setInput('')
-	}
+	wsRef.current.send(JSON.stringify({
+		type: 'chat',
+		payload: input, // без author
+	}))
+	setInput('')
+}
 
 	// --- Экран логина/регистрации ---
 	if (!token) {
