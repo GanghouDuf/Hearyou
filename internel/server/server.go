@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"project_chat/internel/auth"
+	"project_chat/internel/dto"
 	"project_chat/internel/storage"
 	"project_chat/internel/validation"
 	"project_chat/internel/ws"
@@ -15,16 +16,17 @@ import (
 )
 
 type Server struct {
-	httpServer *http.Server
-	mux        *http.ServeMux
-	hub        *ws.Hub
-	userRepo   *storage.UserRepository
+	httpServer  *http.Server
+	mux         *http.ServeMux
+	hub         *ws.Hub
+	userRepo    *storage.UserRepository
+	messageRepo *storage.MessageRepository
 }
 
-func NewServer(addr string, hub *ws.Hub, userRepo *storage.UserRepository) *Server {
+func NewServer(addr string, hub *ws.Hub, userRepo *storage.UserRepository, messageRepo *storage.MessageRepository) *Server {
 	mux := http.NewServeMux()
 
-	s := &Server{mux: mux, hub: hub, userRepo: userRepo}
+	s := &Server{mux: mux, hub: hub, userRepo: userRepo, messageRepo: messageRepo}
 	s.routes() // регистрация путей вынесена отдельно от конструктора
 
 	s.httpServer = &http.Server{
@@ -60,9 +62,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /login", s.handleLogin)
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "web/index.html")
-}
+//func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+//	http.ServeFile(w, r, "web/index.html")
+//}
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -70,13 +72,54 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	tokenString := r.URL.Query().Get("token")
+	if tokenString == "" {
+		http.Error(w, "missing token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := auth.ValidateToken(tokenString)
+	if err != nil {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	userid, ok := claims["user_id"].(float64)
+	if !ok {
+		http.Error(w, "invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
+	username, ok := claims["username"].(string)
+	if !ok {
+		http.Error(w, "invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Println("accept error:", err)
 		return
 	}
-	client := ws.NewClient(s.hub, conn)
+
+	client := ws.NewClient(s.hub, conn, username, int(userid), s.messageRepo)
 	s.hub.Register(client)
+	history, err := s.messageRepo.GetHistory(r.Context(), 50)
+	if err != nil {
+		log.Println("failed to load history:", err)
+	} else {
+		for i, j := 0, len(history)-1; i < j; i, j = i+1, j-1 {
+			history[i], history[j] = history[j], history[i]
+		}
+		for _, m := range history {
+			out, _ := json.Marshal(dto.Message{
+				Type:    "chat",
+				Author:  m.Author,
+				Payload: m.Payload,
+			})
+			client.Send(out)
+		}
+	}
 
 	go client.WritePump()
 	go client.ReadPump()
@@ -101,7 +144,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.userRepo.Create(r.Context(), req.Username, hash); err != nil {
-		http.Error(w, "username already taken", http.StatusConflict)
+		http.Error(w, "Имя уже занято", http.StatusConflict)
 		return
 	}
 
@@ -123,15 +166,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := s.userRepo.GetByUsername(r.Context(), req.Username)
 	if err != nil {
 		log.Println("login: GetByUsername error:", err)
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		http.Error(w, "Неверные учётные данные", http.StatusUnauthorized)
 		return
 	}
-	log.Printf("login: found user, hash=%s", user.PasswordHash) // ←
+	log.Printf("login: found user, hash=%s", user.PasswordHash)
 	log.Printf("login: comparing with password=%s", req.Password)
 
 	if !auth.CheckPassword(user.PasswordHash, req.Password) {
 		log.Println("login: password mismatch")
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
+		http.Error(w, "Неверные учётные данные", http.StatusUnauthorized)
 		return
 	}
 
