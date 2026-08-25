@@ -5,24 +5,29 @@ import (
 	"encoding/json"
 	"log"
 	"project_chat/internel/dto"
+	"project_chat/internel/storage"
 
 	"github.com/coder/websocket"
 	"github.com/go-playground/validator/v10"
 )
 
 type Client struct {
-	hub      *Hub
-	conn     *websocket.Conn
-	send     chan []byte
-	username string
+	hub          *Hub
+	conn         *websocket.Conn
+	send         chan []byte
+	username     string
+	user_id      int
+	message_Repo *storage.MessageRepository
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, username string) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, username string, userid int, messageRepo *storage.MessageRepository) *Client {
 	return &Client{
-		hub:      hub,
-		conn:     conn,
-		send:     make(chan []byte, 256),
-		username: username,
+		hub:          hub,
+		conn:         conn,
+		send:         make(chan []byte, 256),
+		username:     username,
+		user_id:      userid,
+		message_Repo: messageRepo,
 	}
 }
 
@@ -50,6 +55,7 @@ func (c *Client) ReadPump() {
 
 					log.Printf("field %s failed on %s", fielderror.Field(), fielderror.Tag())
 				}
+
 			}
 
 			errjson := dto.ErrorMessage{
@@ -63,6 +69,11 @@ func (c *Client) ReadPump() {
 			c.send <- out
 
 			continue
+		}
+
+		if err := c.message_Repo.Save(context.Background(), c.user_id, msg.Payload); err != nil {
+			log.Println("failed to save message:", err)
+
 		}
 
 		out, err := json.Marshal(msg)
@@ -83,4 +94,8 @@ func (c *Client) WritePump() {
 			return
 		}
 	}
+}
+
+func (c *Client) Send(msg []byte) {
+	c.send <- msg
 }

@@ -19,11 +19,12 @@ func main() {
 	}
 	auth.SetSecret(config.JwtSecret)
 	userRepo := storage.NewUserReporitory(conn)
+	messageRepo := storage.NewMessageRepository(conn)
 	defer conn.Close(ctx)
 	hub := ws.NewHub()
 
 	go hub.Run()
-	srv := server.NewServer(config.Addr, hub, userRepo)
+	srv := server.NewServer(config.Addr, hub, userRepo, messageRepo)
 	log.Fatal(srv.Start())
 
 }

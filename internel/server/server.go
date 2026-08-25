@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"project_chat/internel/auth"
+	"project_chat/internel/dto"
 	"project_chat/internel/storage"
 	"project_chat/internel/validation"
 	"project_chat/internel/ws"
@@ -15,16 +16,17 @@ import (
 )
 
 type Server struct {
-	httpServer *http.Server
-	mux        *http.ServeMux
-	hub        *ws.Hub
-	userRepo   *storage.UserRepository
+	httpServer  *http.Server
+	mux         *http.ServeMux
+	hub         *ws.Hub
+	userRepo    *storage.UserRepository
+	messageRepo *storage.MessageRepository
 }
 
-func NewServer(addr string, hub *ws.Hub, userRepo *storage.UserRepository) *Server {
+func NewServer(addr string, hub *ws.Hub, userRepo *storage.UserRepository, messageRepo *storage.MessageRepository) *Server {
 	mux := http.NewServeMux()
 
-	s := &Server{mux: mux, hub: hub, userRepo: userRepo}
+	s := &Server{mux: mux, hub: hub, userRepo: userRepo, messageRepo: messageRepo}
 	s.routes() // регистрация путей вынесена отдельно от конструктора
 
 	s.httpServer = &http.Server{
@@ -82,6 +84,12 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userid, ok := claims["user_id"].(float64)
+	if !ok {
+		http.Error(w, "invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
 	username, ok := claims["username"].(string)
 	if !ok {
 		http.Error(w, "invalid token claims", http.StatusUnauthorized)
@@ -94,8 +102,24 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := ws.NewClient(s.hub, conn, username)
+	client := ws.NewClient(s.hub, conn, username, int(userid), s.messageRepo)
 	s.hub.Register(client)
+	history, err := s.messageRepo.GetHistory(r.Context(), 50)
+	if err != nil {
+		log.Println("failed to load history:", err)
+	} else {
+		for i, j := 0, len(history)-1; i < j; i, j = i+1, j-1 {
+			history[i], history[j] = history[j], history[i]
+		}
+		for _, m := range history {
+			out, _ := json.Marshal(dto.Message{
+				Type:    "chat",
+				Author:  m.Author,
+				Payload: m.Payload,
+			})
+			client.Send(out)
+		}
+	}
 
 	go client.WritePump()
 	go client.ReadPump()

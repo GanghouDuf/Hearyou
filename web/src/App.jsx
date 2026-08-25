@@ -27,8 +27,27 @@ export default function App() {
   const [connected, setConnected] = useState(false)
   const wsRef = useRef(null)
   const messagesEndRef = useRef(null)
-  useEffect(() => { if (!token) return undefined; const ws = new WebSocket(`ws://${window.location.host}/ws?token=${token}`); wsRef.current = ws; ws.onmessage = (event) => { const msg = JSON.parse(event.data); if (msg.type !== 'error') setMessages((previous) => [...previous, msg]) }; ws.onopen = () => setConnected(true); ws.onclose = () => setConnected(false); return () => ws.close() }, [token])
-  useEffect(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages])
+useEffect(() => {
+	if (!token) return undefined
+
+	const ws = new WebSocket(`ws://${window.location.host}/ws?token=${token}`)
+	wsRef.current = ws
+
+	ws.onmessage = (event) => {
+		const msg = JSON.parse(event.data)
+		if (msg.type !== 'error') setMessages((previous) => [...previous, msg])
+	}
+	ws.onopen = () => setConnected(true)
+	ws.onclose = () => setConnected(false)
+
+	return () => {
+		ws.close()
+	}
+}, [token])
+useEffect(() => {
+	messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+	return undefined
+}, [messages])
   async function handleAuth(event) { event.preventDefault(); setAuthError(''); try { if (mode === 'register') { const register = await fetch('/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }); if (!register.ok) { setAuthError(await register.text()); return } } const login = await fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }); if (!login.ok) { setAuthError(await login.text()); return } const data = await login.json(); setToken(data.token) } catch (error) { setAuthError(`Не удалось подключиться: ${error.message}`) } }
   function handleSend(event) { event.preventDefault(); const text = input.trim(); if (!text || wsRef.current?.readyState !== WebSocket.OPEN) return; wsRef.current.send(JSON.stringify({ type: 'chat', payload: text })); setInput('') }
   if (!token) return <AuthScreen mode={mode} setMode={setMode} username={username} setUsername={setUsername} password={password} setPassword={setPassword} error={authError} onSubmit={handleAuth} />
