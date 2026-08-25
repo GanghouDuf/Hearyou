@@ -60,9 +60,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /login", s.handleLogin)
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "web/index.html")
-}
+//func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+//	http.ServeFile(w, r, "web/index.html")
+//}
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
