@@ -17,16 +17,18 @@ type Client struct {
 	send         chan []byte
 	username     string
 	user_id      int
+	room_id      int
 	message_Repo *storage.MessageRepository
 }
 
-func NewClient(hub *Hub, conn *websocket.Conn, username string, userid int, messageRepo *storage.MessageRepository) *Client {
+func NewClient(hub *Hub, conn *websocket.Conn, username string, userid int, roomid int, messageRepo *storage.MessageRepository) *Client {
 	return &Client{
 		hub:          hub,
 		conn:         conn,
 		send:         make(chan []byte, 256),
 		username:     username,
 		user_id:      userid,
+		room_id:      roomid,
 		message_Repo: messageRepo,
 	}
 }
@@ -71,7 +73,7 @@ func (c *Client) ReadPump() {
 			continue
 		}
 
-		if err := c.message_Repo.Save(context.Background(), c.user_id, msg.Payload); err != nil {
+		if err := c.message_Repo.Save(context.Background(), c.user_id, c.room_id, msg.Payload); err != nil {
 			log.Println("failed to save message:", err)
 
 		}

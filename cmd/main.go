@@ -18,13 +18,15 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 	auth.SetSecret(config.JwtSecret)
+	defer conn.Close(ctx)
+
 	userRepo := storage.NewUserReporitory(conn)
 	messageRepo := storage.NewMessageRepository(conn)
-	defer conn.Close(ctx)
-	hub := ws.NewHub()
+	roomRepo := storage.NewRoomRepository(conn)
 
-	go hub.Run()
-	srv := server.NewServer(config.Addr, hub, userRepo, messageRepo)
+	roomManager := ws.NewRoomManager()
+
+	srv := server.NewServer(config.Addr, roomManager, userRepo, messageRepo, roomRepo)
+
 	log.Fatal(srv.Start())
-
 }
