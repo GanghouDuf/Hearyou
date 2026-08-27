@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
 const Icon = ({ name, size = 20 }) => {
@@ -30,7 +30,7 @@ export default function App() {
 useEffect(() => {
 	if (!token) return undefined
 
-	const ws = new WebSocket(`ws://${window.location.host}/ws?token=${token}`)
+	const ws = new WebSocket(`ws://${window.location.host}/ws?token=${token}&room=general`)
 	wsRef.current = ws
 
 	ws.onmessage = (event) => {

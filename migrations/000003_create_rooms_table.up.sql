@@ -1,0 +1,6 @@
+CREATE TABLE rooms (
+	id SERIAL PRIMARY KEY,
+	name TEXT UNIQUE NOT NULL,
+	created_by INTEGER NOT NULL REFERENCES users(id),
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

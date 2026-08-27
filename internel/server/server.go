@@ -18,15 +18,16 @@ import (
 type Server struct {
 	httpServer  *http.Server
 	mux         *http.ServeMux
-	hub         *ws.Hub
+	roomManager *ws.RoomManager
 	userRepo    *storage.UserRepository
 	messageRepo *storage.MessageRepository
+	roomRepo    *storage.RoomRepository
 }
 
-func NewServer(addr string, hub *ws.Hub, userRepo *storage.UserRepository, messageRepo *storage.MessageRepository) *Server {
+func NewServer(addr string, roomManager *ws.RoomManager, userRepo *storage.UserRepository, messageRepo *storage.MessageRepository, roomRepo *storage.RoomRepository) *Server {
 	mux := http.NewServeMux()
 
-	s := &Server{mux: mux, hub: hub, userRepo: userRepo, messageRepo: messageRepo}
+	s := &Server{mux: mux, roomManager: roomManager, userRepo: userRepo, messageRepo: messageRepo, roomRepo: roomRepo}
 	s.routes() // регистрация путей вынесена отдельно от конструктора
 
 	s.httpServer = &http.Server{
@@ -78,6 +79,12 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	roomName := r.URL.Query().Get("room")
+	if roomName == "" {
+		http.Error(w, "missing room", http.StatusBadRequest)
+		return
+	}
+
 	claims, err := auth.ValidateToken(tokenString)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
@@ -95,6 +102,19 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid token claims", http.StatusUnauthorized)
 		return
 	}
+	userID := int(userid)
+	// находим комнату, или создаём, если её ещё нет
+	room, err := s.roomRepo.GetByName(r.Context(), roomName)
+	if err != nil {
+		newID, createErr := s.roomRepo.Create(r.Context(), roomName, userID)
+		if createErr != nil {
+			http.Error(w, "failed to create room", http.StatusInternalServerError)
+			return
+		}
+		room = &storage.Room{ID: newID, Name: roomName, CreatedBy: userID}
+	}
+
+	hub := s.roomManager.GetOrCreate(roomName)
 
 	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
@@ -102,9 +122,10 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := ws.NewClient(s.hub, conn, username, int(userid), s.messageRepo)
-	s.hub.Register(client)
-	history, err := s.messageRepo.GetHistory(r.Context(), 50)
+	client := ws.NewClient(hub, conn, username, userID, room.ID, s.messageRepo)
+	hub.Register(client)
+
+	history, err := s.messageRepo.GetHistory(r.Context(), room.ID, 50)
 	if err != nil {
 		log.Println("failed to load history:", err)
 	} else {
