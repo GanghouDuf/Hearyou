@@ -17,6 +17,19 @@ services:
       timeout: 5s
       retries: 10
  
+  migrate:
+    image: migrate/migrate:v4.17.1
+    container_name: hearyou-migrate
+    volumes:
+      - ./migrations:/migrations
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://postgres:postgres@db:5432/mydb?sslmode=disable"
+      - "up"
+    depends_on:
+      db:
+        condition: service_healthy
+ 
   app:
     build:
       context: .
@@ -26,6 +39,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       ADDR: ":8080"
       # имя сервиса db резолвится докер-сетью, порт — внутренний (5432), не проброшенный (5433)
