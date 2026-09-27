@@ -1,20 +1,38 @@
 services:
-  postgres:
+  db:
     image: postgres:17
-    container_name: postgres
+    container_name: hearyou-db
     restart: unless-stopped
-
     environment:
+      POSTGRES_DB: mydb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mydb
-      
-
     ports:
       - "5433:5432"
-
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
+      - hearyou-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+ 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hearyou-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ADDR: ":8080"
+      # имя сервиса db резолвится докер-сетью, порт — внутренний (5432), не проброшенный (5433)
+      DATABASE_URL: "postgres://postgres:postgres@db:5432/mydb?sslmode=disable"
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+ 
 volumes:
-  postgres_data:
+  hearyou-db-data:
